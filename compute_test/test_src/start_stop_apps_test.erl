@@ -38,7 +38,13 @@ initial_test()->
     DestDir=AppId,
     PathList=["ebin"],
     ok=git_load_start_app(?A_B1,AppId,GitCmd,DestDir,PathList),
-    ok=stop_unload_app(?A_B1,AppId,DestDir),
+    ok=git_load_start_app(?A_B2,AppId,GitCmd,DestDir,PathList),
+    ok=git_load_start_app(?A_B3,AppId,GitCmd,DestDir,PathList),
+    ok=git_load_start_app(?B_B2,AppId,GitCmd,DestDir,PathList),
+    ok=stop_unload_app(?A_B1,AppId,DestDir,PathList),
+    ok=stop_unload_app(?A_B2,AppId,DestDir,PathList),
+    ok=stop_unload_app(?A_B3,AppId,DestDir,PathList),    
+    ok=stop_unload_app(?B_B2,AppId,DestDir,PathList),
     ok.
 
 git_load_start_app(Slave,AppId,GitCmd,DestDir,PathList)->
@@ -53,11 +59,11 @@ git_load_start_app(Slave,AppId,GitCmd,DestDir,PathList)->
     {pong,Slave,App}=rpc:call(Slave,list_to_atom(AppId),ping,[]),
     ok.
   
-stop_unload_app(Slave,AppId,DestDir)->
+stop_unload_app(Slave,AppId,DestDir,PathList)->
     ok=rpc:call(Slave,application,stop,[list_to_atom(AppId)]),
     {ok,DirParent}=rpc:call(Slave,file,get_cwd,[]),
-    Path=filename:join([DirParent,AppId,"ebin"]),
-    true=rpc:call(Slave,code,del_path,[Path]), 
+    FullNamePathList=[filename:join([DirParent,DestDir,Path])||Path<-PathList],
+    [rpc:call(Slave,code,del_path,[FullNamePath])||FullNamePath<-FullNamePathList],
     {badrpc,_}=rpc:call(Slave,list_to_atom(AppId),ping,[]),
     ok=rpc:call(Slave,application,unload,[list_to_atom(AppId)]),
     rpc:call(Slave,os,cmd,["rm -rf "++DestDir]),
