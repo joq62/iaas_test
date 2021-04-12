@@ -1,0 +1,94 @@
+%%% -------------------------------------------------------------------
+%%% @author  : Joq Erlang
+%%% @doc : represent a logical vm   
+%%% 
+%%% Supports the system with standard erlang vm functionality, load and start
+%%% of an erlang application (downloaded from git hub) and "dns" support 
+%%% 
+%%% Make and start the board start SW.
+%%%  boot_service initiates tcp_server and l0isten on port
+%%%  Then it's standby and waits for controller to detect the board and start to load applications
+%%% 
+%%%     
+%%% -------------------------------------------------------------------
+-module(start_stop_apps_test). 
+
+%% --------------------------------------------------------------------
+%% Include files
+%% --------------------------------------------------------------------
+-include("test_src/compute_test.hrl").
+%% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+%% --------------------------------------------------------------------
+%% Key Data structures
+%% 
+%% --------------------------------------------------------------------
+-define(WAIT_FOR_TABLES,10000).	  
+-define(MaxRandNum,5).
+%% --------------------------------------------------------------------
+-export([]).
+
+%% ====================================================================
+%% External functions
+%% ====================================================================
+
+common_test()->
+    
+    ?assertMatch([{ok,_},
+		  {ok,_},
+		  {ok,_}],
+		 [rpc:call(?B1,slave,start,[compute_unit_test:host(),VmId,"-setcookie abc"])||VmId<-[?A_B1_Name,
+										   ?B_B1_Name,
+										   ?C_B1_Name]]),
+    
+    
+    ?assertMatch([{ok,_},
+		  {ok,_},
+		  {ok,_}],
+		 [rpc:call(?B2,slave,start,[compute_unit_test:host(),VmId,"-setcookie abc"])||VmId<-[?A_B2_Name,
+										   ?B_B2_Name,
+										   ?C_B2_Name]]),
+    ?assertMatch([{ok,_},
+		  {ok,_},
+		  {ok,_}],
+		 [rpc:call(?B3,slave,start,[compute_unit_test:host(),VmId,"-setcookie abc"])||VmId<-[?A_B3_Name,
+										   ?B_B3_Name,
+										   ?C_B3_Name]]),
+    % 14 = 3*board+9*slaves+compute+ ???
+    ?assertEqual(14,lists:flatlength(nodes())),
+    
+
+    ok.
+
+
+load_start_app(AppId,GitPath,DestDir,ErlCmd)->
+    
+    % Clone common 
+    AppId="common",
+    rpc:call(?A_B2,os,cmd,["rm -rf "++AppId]),
+    GitCmd="git clone https://github.com/joq62/common_src.git common",
+    rpc:call(?A_B2,os,cmd,[GitCmd]),
+    %% Add path to vm and start the application 
+    {ok,DirParent}=rpc:call(?A_B2,file,get_cwd,[]),
+    Path=filename:join([DirParent,AppId,"ebin"]),
+    true=rpc:call(?A_B2,code,add_patha,[Path]),
+    ok=rpc:call(?A_B2,application,start,[list_to_atom(AppId)]),
+    ?assertMatch({pong,_,common},rpc:call(?A_B2,common,ping,[])),
+
+    %Running
+
+    % Stop and unload
+    ok=rpc:call(?A_B2,application,stop,[list_to_atom(AppId)]),
+    true=rpc:call(?A_B2,code,del_path,[Path]), % 
+    ?assertMatch({badrpc,_},rpc:call(?A_B2,common,ping,[])),
+    ok=rpc:call(?A_B2,application,unload,[list_to_atom(AppId)]),
+    
+    ?assertMatch({error,{"no such file or directory","common.app"}},
+		 rpc:call(?A_B2,application,start,[list_to_atom(AppId)])),
+    
+    % Start again 
+    true=rpc:call(?A_B2,code,add_patha,[Path]),
+    ok=rpc:call(?A_B2,application,start,[list_to_atom(AppId)]),
+    ?assertMatch({pong,_,common},rpc:call(?A_B2,common,ping,[])),
+    
+    ok.
