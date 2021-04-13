@@ -11,7 +11,7 @@
 %%% 
 %%%     
 %%% -------------------------------------------------------------------
--module(start_system_test). 
+-module(sd_test). 
 
 %% --------------------------------------------------------------------
 %% Include files
@@ -26,34 +26,43 @@
 -define(WAIT_FOR_TABLES,10000).	  
 -define(MaxRandNum,5).
 %% --------------------------------------------------------------------
--export([test/0]).
+-export([test/0,
+	sd/1]).
 
 %% ====================================================================
 %% External functions
 %% ====================================================================
+
 test()->
-    ok=initial_test(),
+    App=common,
+    R1=sd(App),
+    time_test(10),
+    io:format("R1 ~p~n",[R1]),
+%  R1=['a_board1@joq62-X550CA','b_board2@joq62-X550CA','a_board2@joq62-X550CA',
+%	'a_board3@joq62-X550CA'],
+
+    ok=rpc:call('a_board2@joq62-X550CA',application,stop,[App]),
+    R2=sd(App),
+ %   R2= ['a_board1@joq62-X550CA',
+%	 'b_board2@joq62-X550CA',
+%	 'a_board3@joq62-X550CA'],
+    io:format("R2 ~p~n",[R2]),
     ok.
 
-initial_test()->
-    [{ok,_},
-     {ok,_},
-     {ok,_}]=[rpc:call(?B1,slave,start,[compute_unit_test:host(),VmId,"-setcookie abc"])||VmId<-[?A_B1_Name,
-										   ?B_B1_Name,
-										   ?C_B1_Name]],
-    
-    
-   [{ok,_},
-    {ok,_},
-    {ok,_}]=[rpc:call(?B2,slave,start,[compute_unit_test:host(),VmId,"-setcookie abc"])||VmId<-[?A_B2_Name,
-												?B_B2_Name,
-												?C_B2_Name]],
-    [{ok,_},
-     {ok,_},
-     {ok,_}]=[rpc:call(?B3,slave,start,[compute_unit_test:host(),VmId,"-setcookie abc"])||VmId<-[?A_B3_Name,
-										   ?B_B3_Name,
-										   ?C_B3_Name]],
-    % 11 = 3*board+9*slaves???
-    11=lists:flatlength(nodes()),
-    ok.
+time_test(0)->
+    ok;
+time_test(N)->
+    {T,_}=timer:tc(sd_test,sd,[common]),
+    io:format("sd(common) exec time ~p~n",[T]),
+    {T2,_}=timer:tc(rpc,call,['a_board1@joq62-X550CA',common,ping,[]]),
+    io:format("common:ping exec time ~p~n",[T2]),
+    time_test(N-1).
 
+sd(App)-> % takes about 2,5 ms -> store in mnesia or each app keeps their needed apps in State?
+    All=[{Node,rpc:call(Node,application,which_applications,[])}||Node<-nodes()],
+    [Node||{Node,AppList}<-All,
+	   true==lists:keymember(App,1,AppList)].
+
+node_apps(Node)->
+    rpc:call(Node,application,which_applications,[]).
+    

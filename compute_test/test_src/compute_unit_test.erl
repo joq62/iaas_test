@@ -21,7 +21,7 @@
 -include("src/db_lock.hrl").
 -include("test_src/compute_test.hrl").
 %% --------------------------------------------------------------------
--include_lib("eunit/include/eunit.hrl").
+%%-include_lib("eunit/include/eunit.hrl").
 %% --------------------------------------------------------------------
 %% Key Data structures
 %% 
@@ -29,7 +29,8 @@
 -define(WAIT_FOR_TABLES,10000).	  
 -define(MaxRandNum,5).
 %% --------------------------------------------------------------------
--export([node_name/1,
+-export([test/0,
+	 node_name/1,
 	 monkey/0,
 	 a_monkey/0,
 	 a_sysinfo/0,
@@ -206,21 +207,35 @@ second_blood(_FirstBlood,SecondBlood)->
 %% 
 %% 
 %% --------------------------------------------------------------------
-
+test()->
+    io:format("Start test ~p~n",[?MODULE]),
+    
+    io:format("defines_test() ~n"),
+    ok=defines_test(),
+    io:format("clean_start_test() ~n"),
+    ok=clean_start_test(),
+    io:format("connect_boards_test() ~n"),
+    ok=connect_boards_test(),
+    io:format("start_slaves_test() ~n"),
+    ok=start_slaves_test(),
+    
+     io:format("Successfully Stop test ~p~n",[?MODULE]),
+    
+    ok.
 % Test defines
 defines_test()->
-    ?assertEqual(['board1@joq62-X550CA',
-		  'board2@joq62-X550CA',
-		  'board3@joq62-X550CA'],[?B1,?B2,?B3]),
-    ?assertEqual(['a_board1@joq62-X550CA',
-		  'b_board1@joq62-X550CA',
-		  'c_board1@joq62-X550CA'],[?A_B1,?B_B1,?C_B1]),
-    ?assertEqual(['a_board2@joq62-X550CA',
-		 'b_board2@joq62-X550CA',
-		 'c_board2@joq62-X550CA'],[?A_B2,?B_B2,?C_B2]),
-    ?assertEqual(['a_board3@joq62-X550CA',
-		  'b_board3@joq62-X550CA',
-		  'c_board3@joq62-X550CA'],[?A_B3,?B_B3,?C_B3]),
+    ['board1@joq62-X550CA',
+     'board2@joq62-X550CA',
+     'board3@joq62-X550CA']=[?B1,?B2,?B3],
+    ['a_board1@joq62-X550CA',
+     'b_board1@joq62-X550CA',
+     'c_board1@joq62-X550CA']=[?A_B1,?B_B1,?C_B1],
+    ['a_board2@joq62-X550CA',
+     'b_board2@joq62-X550CA',
+     'c_board2@joq62-X550CA']=[?A_B2,?B_B2,?C_B2],
+    ['a_board3@joq62-X550CA',
+     'b_board3@joq62-X550CA',
+     'c_board3@joq62-X550CA']=[?A_B3,?B_B3,?C_B3],
     
     ok.
 clean_start_test()->
@@ -251,122 +266,14 @@ clean_start_test()->
 
 %% Connect to board nodes
 connect_boards_test()->
-    ?assertEqual([pong,pong,pong],[net_adm:ping(Node)||Node<-[?B1,?B2,?B3]]),
+    [pong,pong,pong]=[net_adm:ping(Node)||Node<-[?B1,?B2,?B3]],
     ok.
 		 
 %% Start slaves, a1,b1,c1,a2 ..
 start_slaves_test()->
-    ?assertEqual(ok,start_system_test:test()),
-    ?assertEqual(ok,start_stop_apps_test:test()),
-    
+    ok=start_system_test:test(),
+    ok=start_stop_apps_test:test(),
+    ok=sd_test:test(),
     ok.
     
-
-%% All nodes running 
-
-%% Test 
-do_1_test_xx()->
-    ?assertEqual({ok,"/home/joq62/erlang/simple_erlang/iaas_test/board2"},rpc:call(?A_B2,file,get_cwd,[])),
-    ?assertEqual({ok,"/home/joq62/erlang/simple_erlang/iaas_test/board2"},rpc:call(?B_B2,file,get_cwd,[])),
-    ok.
-
-%% create a dir for a_b2 called a_b2
-create_dir_test_Xx()->
-    {ok,DirParent}=rpc:call(?A_B2,file,get_cwd,[]),
-    % Local dir == VmId : used by the applications that are loaded to that vm
-    NewDir=filename:join(DirParent,vm_id(?A_B2)),
-    rpc:call(?A_B2,os,cmd,["rm -rf "++NewDir]),
-    ok=rpc:call(?A_B2,file,make_dir,[NewDir]),
-    true=rpc:call(?A_B2,filelib,is_dir,[NewDir]),
-    %% Test to create a file and see if 
-    {ok,Bin}=rpc:call(?A_B2,file,read_file,["Makefile"]),
-    ok=rpc:call(?A_B2,file,write_file,[filename:join(NewDir,"M1"),Bin]),
-    
-    ok.
-
-%% common 
-
-
-
-%% Intial installation test 
-start_compute_test_xx()->
-    {ok,Host}=inet:gethostname(),
-    NodeA=list_to_atom("a@"++Host),
-    NodeB=list_to_atom("b@"++Host),
-    NodeC=list_to_atom("c@"++Host),
-    WorkerNodes=[NodeA,NodeB,NodeC],
-    ?assertEqual({ok,NodeA},slave:start(Host,a,"-pa ebin -pa test_ebin -pa gen_mnesia/ebin -setcookie abc -compute config_file nodes -run compute boot ")),
-    timer:sleep(1),
-    ?assertEqual({ok,NodeB},slave:start(Host,b,"-pa ebin -pa test_ebin -pa gen_mnesia/ebin -setcookie abc -compute config_file nodes -run compute boot ")),
-    timer:sleep(1),
-    ?assertEqual({ok,NodeC},slave:start(Host,c,"-pa ebin  -pa test_ebin -pa gen_mnesia/ebin -setcookie abc -compute config_file nodes -run compute boot ")),
-    timer:sleep(20),
-    ?assertEqual([pong,pong,pong],[net_adm:ping(Node)||Node<-WorkerNodes]),
-    ?assertMatch([{pong,_,_},{pong,_,_},{pong,_,_}],[rpc:call(Node,compute,ping,[])||Node<-WorkerNodes]),
-    ok.
-    
-install_test_xx()->
-    {ok,Host}=inet:gethostname(),
-    NodeA=list_to_atom("a@"++Host),
-    ?assertMatch([ok,ok],rpc:call(NodeA,compute,install,[])),
-    ok.
-
-
-%% Cluster running 
-create_table_passwd_test_Xx()->
-    {ok,Host}=inet:gethostname(),
-    NodeA=list_to_atom("a@"++Host),
-    NodeB=list_to_atom("b@"++Host),
-    NodeC=list_to_atom("c@"++Host),
-
-    Table=passwd,
-    Args=[{attributes, record_info(fields, passwd)}],
-    ?assertEqual(ok,rpc:call(NodeA,gen_mnesia,create_table,[Table,Args])),
-    ?assertEqual(ok,rpc:call(NodeA,gen_mnesia,add_table,[NodeB,passwd,ram_copies])),
-    ?assertEqual(ok,rpc:call(NodeA,gen_mnesia,add_table,[NodeC,passwd,ram_copies])),
-    ok.
-
-passwd_test_xx()->
-    {ok,Host}=inet:gethostname(),
-    NodeA=list_to_atom("a@"++Host),
-    NodeB=list_to_atom("b@"++Host),
-    NodeC=list_to_atom("c@"++Host),
-    ?assertEqual({atomic,ok},rpc:call(NodeA,db_passwd,create,["David",david1])),
-    ?assertEqual({atomic,ok},rpc:call(NodeB,db_passwd,create,["Joq",joq1])),
-    ?assertEqual([{"Joq",joq1}],rpc:call(NodeC,db_passwd,read,["Joq"])),  
-    ?assertEqual([{"Joq",joq1},{"David",david1}],rpc:call(NodeA,db_passwd,read_all,[])),    
-    ok.
-
-lock_test_X()->
-{ok,Host}=inet:gethostname(),
-    NodeA=list_to_atom("a@"++Host),
-    NodeB=list_to_atom("b@"++Host),
-    ?assertEqual([dbase_leader],rpc:call(NodeA,db_lock,read_all,[])),
-    ?assertMatch({atomic,ok},rpc:call(NodeA,db_lock,create,[sd_lock])),
-    ?assertEqual([dbase_leader,sd_lock],rpc:call(NodeB,db_lock,read_all,[])),   
- %   ?assertEqual({atomic,ok},rpc:call(NodeA,db_lock,create,[sd_lock])),
-
-    ok.
-
-
-create_delete_vm_test_xx()->
-    {ok,Host}=inet:gethostname(),
-    NodeA=list_to_atom("a@"++Host),
-%    NodeB=list_to_atom("b@"++Host),
- %   NodeC=list_to_atom("c@"++Host),
-
-    {ok,Node}=rpc:call(NodeA,compute,create_vm,[]),
-    ?assertEqual(pong,net_adm:ping(Node)),
-    
-    ?assertMatch(ok,rpc:call(NodeA,compute,delete_vm,[Node])),
-  %  timer:sleep(100),
-    ?assertEqual(pang,net_adm:ping(Node)),
-
-    ok.
-
-    
-stop_test_xxx()->
-    init:stop().
-    
-
 

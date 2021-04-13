@@ -17,7 +17,9 @@
 -export([install/1,
 	 start_restarted_nodes/1,
 	 create_vm/0,
-	 delete_vm/1
+	 delete_vm/1,
+	 git_load_start_app/5,
+	 stop_unload_app/4
 	 
 	]).
 
@@ -26,6 +28,32 @@
 %% ====================================================================
 %% External functions
 %% ====================================================================
+
+
+
+git_load_start_app(Slave,AppId,GitCmd,DestDir,PathList)->
+    rpc:call(Slave,os,cmd,["rm -rf "++DestDir]),
+    rpc:call(Slave,os,cmd,[GitCmd]),
+    %% Add path to vm and start the application 
+    {ok,DirParent}=rpc:call(Slave,file,get_cwd,[]),
+    FullNamePathList=[filename:join([DirParent,DestDir,Path])||Path<-PathList],
+    [rpc:call(Slave,code,add_patha,[FullNamePath])||FullNamePath<-FullNamePathList],
+    ok=rpc:call(Slave,application,start,[list_to_atom(AppId)]),
+    App=list_to_atom(AppId),
+    {pong,Slave,App}=rpc:call(Slave,list_to_atom(AppId),ping,[]),
+    ok.
+  
+stop_unload_app(Slave,AppId,DestDir,PathList)->
+    ok=rpc:call(Slave,application,stop,[list_to_atom(AppId)]),
+    {ok,DirParent}=rpc:call(Slave,file,get_cwd,[]),
+    FullNamePathList=[filename:join([DirParent,DestDir,Path])||Path<-PathList],
+    [rpc:call(Slave,code,del_path,[FullNamePath])||FullNamePath<-FullNamePathList],
+    {badrpc,_}=rpc:call(Slave,list_to_atom(AppId),ping,[]),
+    ok=rpc:call(Slave,application,unload,[list_to_atom(AppId)]),
+    rpc:call(Slave,os,cmd,["rm -rf "++DestDir]),
+    AppFile=AppId++".app",
+    {error,{"no such file or directory",AppFile}}=rpc:call(Slave,application,start,[list_to_atom(AppId)]),
+    ok.
 
 %% --------------------------------------------------------------------
 %% Function:start

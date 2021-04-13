@@ -35,12 +35,16 @@
 
 
 %% server interface
+
+%%-- Handle applications
 -export([install/0,
 	 read_status/0,
 	 set_status/1,
 	 create_vm/0,
 	 delete_vm/1,
 	 boot/0]).
+
+
 
 -export([add_node/1,
 	 delete_node/1,

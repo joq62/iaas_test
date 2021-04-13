@@ -18,7 +18,7 @@
 %% --------------------------------------------------------------------
 -include("test_src/compute_test.hrl").
 %% --------------------------------------------------------------------
--include_lib("eunit/include/eunit.hrl").
+%-include_lib("eunit/include/eunit.hrl").
 %% --------------------------------------------------------------------
 %% Key Data structures
 %% 
@@ -26,13 +26,18 @@
 -define(WAIT_FOR_TABLES,10000).	  
 -define(MaxRandNum,5).
 %% --------------------------------------------------------------------
--export([]).
+-export([test/0]).
 
 %% ====================================================================
 %% External functions
 %% ====================================================================
-
-initial_test()->
+test()->
+    ok=start_test(),
+    ok=stop_test(),
+    ok=start_again_test(),
+    ok.
+    
+start_test()->
     AppId="common",
     GitCmd="git clone https://github.com/joq62/common_src.git common",
     DestDir=AppId,
@@ -41,11 +46,31 @@ initial_test()->
     ok=git_load_start_app(?A_B2,AppId,GitCmd,DestDir,PathList),
     ok=git_load_start_app(?A_B3,AppId,GitCmd,DestDir,PathList),
     ok=git_load_start_app(?B_B2,AppId,GitCmd,DestDir,PathList),
+    ok.
+
+stop_test()->
+    AppId="common",
+    DestDir=AppId,
+    PathList=["ebin"],
     ok=stop_unload_app(?A_B1,AppId,DestDir,PathList),
     ok=stop_unload_app(?A_B2,AppId,DestDir,PathList),
     ok=stop_unload_app(?A_B3,AppId,DestDir,PathList),    
     ok=stop_unload_app(?B_B2,AppId,DestDir,PathList),
     ok.
+
+start_again_test()->
+    AppId="common",
+    GitCmd="git clone https://github.com/joq62/common_src.git common",
+    DestDir=AppId,
+    PathList=["ebin"],
+    ok=git_load_start_app(?A_B1,AppId,GitCmd,DestDir,PathList),
+    ok=git_load_start_app(?A_B2,AppId,GitCmd,DestDir,PathList),
+    ok=git_load_start_app(?A_B3,AppId,GitCmd,DestDir,PathList),
+    ok=git_load_start_app(?B_B2,AppId,GitCmd,DestDir,PathList),
+    ok.
+
+
+
 
 git_load_start_app(Slave,AppId,GitCmd,DestDir,PathList)->
     rpc:call(Slave,os,cmd,["rm -rf "++DestDir]),
