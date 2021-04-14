@@ -29,8 +29,6 @@
 %% External functions
 %% ====================================================================
 
-
-
 git_load_start_app(Slave,AppId,GitCmd,DestDir,PathList)->
     rpc:call(Slave,os,cmd,["rm -rf "++DestDir]),
     rpc:call(Slave,os,cmd,[GitCmd]),

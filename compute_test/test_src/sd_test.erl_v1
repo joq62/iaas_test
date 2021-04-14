@@ -34,9 +34,8 @@
 %% ====================================================================
 
 test()->
-    sd:start(),
     t1(),
-   % t2(),
+    t2(),
 
     ok.
 t1()-> 
@@ -47,8 +46,8 @@ t1()->
 %  R1=['a_board1@joq62-X550CA','b_board2@joq62-X550CA','a_board2@joq62-X550CA',
 %	'a_board3@joq62-X550CA'],
 
-    rpc:call('a_board2@joq62-X550CA',application,stop,[App]),
-    R2=sd:get(App),
+    ok=rpc:call('a_board2@joq62-X550CA',application,stop,[App]),
+    R2=sd(App),
  %   R2= ['a_board1@joq62-X550CA',
 %	 'b_board2@joq62-X550CA',
 %	 'a_board3@joq62-X550CA'],
@@ -71,7 +70,7 @@ check()->
     {ok,Catalog}=file:consult("apps.catalog"),
    % io:format("Deployment = ~p~n",[Deployment]),
  
-    AllRunningApps=sd:get(all),  % All=[{Node,[{app,"app_info",Vsn}]
+    AllRunningApps=sd(all),  % All=[{Node,[{app,"app_info",Vsn}]
     check(AllRunningApps,Catalog,Deployment,[],[]).
 
 check([],_,_,StartApps,StopApps)->
