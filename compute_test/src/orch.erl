@@ -19,12 +19,11 @@
 %% --------------------------------------------------------------------
 %-include("src/compute.hrl").
 %% --------------------------------------------------------------------
--define(UpdateInterval,10*1000).
+
+%-define(UpdateInterval,10*1000).
+-define(UpdateInterval,3*1000).
 -define(GitDeployment,"glurk ").
 -define(GitCatalog,"glurk ").
-
--define(Catalog,"apps.catalog").
--define(Deployment,"deployment.config").
 
 
 %% --------------------------------------------------------------------
@@ -96,8 +95,8 @@ update()->
 %
 %% --------------------------------------------------------------------
 init([]) ->
-    Catalog=get_catalog(),
-    Deployment=get_deployment(),
+    {ok,Catalog}=rpc:call(node(),orch_lib,get_catalog,[],10*1000),
+    {ok,Deployment}=rpc:call(node(),orch_lib,get_deployment,[],10*1000),
     S=self(),
     spawn(fun()->local_update(S) end),  
     {ok, #state{deployment=Deployment,
@@ -116,7 +115,6 @@ init([]) ->
 
 
 handle_call({stop}, _From, State) ->
-    mnesia:stop(),
     {stop, normal, shutdown_ok, State};
 
 handle_call(Request, From, State) ->
@@ -148,6 +146,8 @@ handle_cast(Msg, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 
 handle_info({update,Catalog,Deployment}, State) ->
+    io:format("Catalog ~p~n",[{?MODULE,?FUNCTION_NAME,?LINE,Catalog}]),
+    io:format("Deployment ~p~n",[{?MODULE,?FUNCTION_NAME,?LINE,Deployment}]),
     {noreply, State#state{deployment=Deployment,
 			  catalog=Catalog}};
 
@@ -188,8 +188,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %% --------------------------------------------------------------------
 local_update(Pid)->
-    Catalog=get_catalog(),
-    Deployment=get_deployment(),
+    {ok,Catalog}=rpc:call(node(),orch_lib,get_catalog,[],10*1000),
+    {ok,Deployment}=rpc:call(node(),orch_lib,get_deployment,[],10*1000),
  
 %    io:format("local_update(Pid) ~p~n",[{?MODULE,?LINE,Pid}]),
     Pid!{update,Catalog,Deployment},
@@ -197,45 +197,3 @@ local_update(Pid)->
     ?MODULE:update().
 
 
-get_catalog()->
-    {ok,Catalog}=file:consult(?Catalog),
-    Catalog.
-get_deployment()->
-    {ok,Deployment}=file:consult(?Deployment),
-    Deployment.
-
-check()->
-    % git clone deployment.config [{Node,app}]
-    {ok,Deployment}=file:consult("deployment.config"),
-    {ok,Catalog}=file:consult("apps.catalog"),
-   % io:format("Deployment = ~p~n",[Deployment]),
- 
-    AllRunningApps=sd:get(all),  % All=[{Node,[{app,"app_info",Vsn}]
-    check(AllRunningApps,Catalog,Deployment,[],[]).
-
-check([],_,_,StartApps,StopApps)->
-    {StartApps,StopApps};
-check([{Node,AppList}|T],Catalog,Deployment,StartApps,StopApps)->
-   % io:format("Node,AppList = ~p~n",[{Node,AppList}]),
-  %  io:format("Deployment = ~p~n",[Deployment]),
-    FilteredAppListOnNode=[{Node,App}||{App,_,_}<-AppList,
-				       true==lists:keymember(App,1,Catalog)],
-
-   % io:format("FilteredAppListOnNode = ~p~n",[FilteredAppListOnNode]),
-    AppsToDeployOnNode=[{XNode,XApp}||{XNode,XApp}<-Deployment,
-		     XNode==Node],
-   % io:format("AppsToDeployOnNode = ~p~n",[AppsToDeployOnNode]),
-    Start=[{ZNode,ZApp}||{ZNode,ZApp}<-AppsToDeployOnNode,
-			 false==lists:member({ZNode,ZApp},FilteredAppListOnNode)],
-
-    Stop=[{ZNode,ZApp}||{ZNode,ZApp}<-FilteredAppListOnNode,
-			 false==lists:member({ZNode,ZApp},AppsToDeployOnNode)],
-    
-   % Stop=[{YNode,YApp}||{YNode,YApp}<-Deployment,
-%				 false==lists:member({YNode,YApp},FilteredAppList)],
- %   Stop=[],
- %   io:format("Start = ~p~n",[Start]),
-%    io:format("StopApps = ~p~n",[StopApps]),
-    check(T,Catalog,Deployment,
-	  lists:append(Start,StartApps),
-	  lists:append(Stop,StopApps)).

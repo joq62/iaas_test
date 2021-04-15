@@ -11,7 +11,7 @@
 %%% 
 %%%     
 %%% -------------------------------------------------------------------
--module(orch). 
+-module(iaas). 
 
 -behaviour(gen_server).
 %% --------------------------------------------------------------------
@@ -19,12 +19,13 @@
 %% --------------------------------------------------------------------
 %-include("src/compute.hrl").
 %% --------------------------------------------------------------------
--define(UpdateInterval,10*1000).
+-define(UpdateInterval,3*1000).
+-define(GitCatalog,"glurk ").
 %% --------------------------------------------------------------------
 %% Key Data structures
 %% 
 %% --------------------------------------------------------------------
--record(state,{running}).
+-record(state,{catalog}).
 
 %% --------------------------------------------------------------------
 
@@ -36,7 +37,7 @@
 %% server interface
 
 %%-- Handle applications
--export([get/1,
+-export([
 	 update/0,
 	 ping/0	 
 	]).
@@ -64,8 +65,7 @@ stop()-> gen_server:call(?MODULE, {stop},infinity).
 
 
 %%----------------------------------------------------------------------
-get(Application)->
-    gen_server:call(?MODULE,{get,Application},infinity).    
+
 ping()->
     gen_server:call(?MODULE,{ping},infinity).
 
@@ -91,10 +91,10 @@ update()->
 %
 %% --------------------------------------------------------------------
 init([]) ->
-    AllRunningApps=[{Node,rpc:call(Node,application,which_applications,[])}||Node<-nodes()],   
+    ok=rpc:call(node(),iaas_lib,start_all_nodes,[]),
     S=self(),
     spawn(fun()->local_update(S) end),  
-    {ok, #state{running=[AllRunningApps]}}.
+    {ok, #state{}}.
 
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -106,17 +106,13 @@ init([]) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (aterminate/2 is called)
 %% --------------------------------------------------------------------
-handle_call({get,all}, _From, State) ->
-    Reply=State#state.running,
-    {reply, Reply, State};
 
-handle_call({get,Application}, _From, State) ->
-    Reply=[Node||{Node,AppList}<-State#state.running,
-		 true==lists:keymember(Application,1,AppList)],
+
+handle_call({ping}, _From, State) ->
+    Reply={pong,node(),?MODULE},
     {reply, Reply, State};
 
 handle_call({stop}, _From, State) ->
-    mnesia:stop(),
     {stop, normal, shutdown_ok, State};
 
 handle_call(Request, From, State) ->
@@ -132,9 +128,7 @@ handle_call(Request, From, State) ->
 %% --------------------------------------------------------------------
 
 handle_cast({update}, State) ->
- %   Reply=[Node||{Node,AppList}<-State#state.running,
-%		 true==lists:keymember(common,1,AppList)],
- %   io:format("update  ~p~n",[{?MODULE,?LINE,Reply}]),
+ 
     S=self(),
     spawn(fun()->local_update(S) end),  
     {noreply, State};
@@ -150,8 +144,11 @@ handle_cast(Msg, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 
-handle_info({all_running_apps,AllRunningApps}, State) ->
-    {noreply, State#state{running=AllRunningApps}};
+handle_info({update,Catalog}, State) ->
+    %% Glurk tabort 
+    io:format("Catalog ~p~n",[{?MODULE,?FUNCTION_NAME,?LINE,Catalog}]),
+    {noreply, State#state{catalog=Catalog}};
+
 handle_info(Info, State) ->
     io:format("unmatched match info ~p~n",[{?MODULE,?LINE,Info}]),
     {noreply, State}.
@@ -191,8 +188,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %% --------------------------------------------------------------------
 local_update(Pid)->
-    AllRunningApps=[{Node,rpc:call(Node,application,which_applications,[])}||Node<-nodes()],   
+    ok=rpc:cast(node(),iaas_lib,start_stop_nodes,[],10*1000),
 %    io:format("local_update(Pid) ~p~n",[{?MODULE,?LINE,Pid}]),
-    Pid!{all_running_apps,AllRunningApps},
+%    Pid!{update,Catalog},
     timer:sleep(?UpdateInterval),
-    sd:update().
+    ?MODULE:update().

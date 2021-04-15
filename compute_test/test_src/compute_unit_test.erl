@@ -274,6 +274,7 @@ start_slaves_test()->
     ok=start_system_test:test(),
     ok=start_stop_apps_test:test(),
     ok=sd_test:test(),
+    ok=orch_test:test(),
     ok.
     
 
